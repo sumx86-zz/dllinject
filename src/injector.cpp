@@ -127,7 +127,6 @@ bool dllinject::IsProcess64( VOID ) {
         #endif
     #endif
     #ifdef _WIN32
-        // 64bit programs can't run on 32bit windows
         return false;
     #endif
     return false;
