@@ -129,7 +129,6 @@ bool dllinject::IsProcess64( VOID ) {
     #ifdef _WIN32
         return false;
     #endif
-    return false;
 }
 
 bool dllinject::InjectDll( const std::wstring& dllpath ) {
