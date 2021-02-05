@@ -2,25 +2,29 @@
 
 typedef BOOL (__stdcall *LPFN_ISWOW64PROC)(HANDLE, PBOOL);
 
-typedef NTSTATUS (__stdcall *pfnNtCreateThreadEx)
-(
-	OUT PHANDLE hThread,
-	IN ACCESS_MASK DesiredAccess,
-	IN PVOID ObjectAttributes,
-	IN HANDLE ProcessHandle,
-	IN PVOID lpStartAddress,
-	IN PVOID lpParameter,
-	IN ULONG Flags,
-	IN SIZE_T StackZeroBits,
-	IN SIZE_T SizeOfStackCommit,
-	IN SIZE_T SizeOfStackReserve,
-	OUT PVOID lpBytesBuffer);
+#ifdef DLLINJECT_NT_CREATE_THREAD_EX
+    typedef NTSTATUS (__stdcall *pfnNtCreateThreadEx)
+    (
+        OUT PHANDLE hThread,
+        IN ACCESS_MASK DesiredAccess,
+        IN PVOID ObjectAttributes,
+        IN HANDLE ProcessHandle,
+        IN PVOID lpStartAddress,
+        IN PVOID lpParameter,
+        IN ULONG Flags,
+        IN SIZE_T StackZeroBits,
+        IN SIZE_T SizeOfStackCommit,
+        IN SIZE_T SizeOfStackReserve,
+        OUT PVOID lpBytesBuffer);
+#endif
 
 #define LOADLIB_ROUTINE()\
     (LPVOID) GetProcAddress( GetModuleHandle(TEXT("kernel32")), "LoadLibraryW")
 
-#define NTCREATE_THREAD_EX()\
-    (LPVOID) GetProcAddress( GetModuleHandle(TEXT("ntdll")), "NtCreateThreadEx" )
+#ifdef DLLINJECT_NT_CREATE_THREAD_EX
+    #define NTCREATE_THREAD_EX()\
+        (LPVOID) GetProcAddress( GetModuleHandle(TEXT("ntdll")), "NtCreateThreadEx" )
+#endif
 
 dllinject::dllinject( const char *name ) {
     if( !FindProcessByName( name ) ) {
@@ -150,11 +154,17 @@ bool dllinject::IsProcess64( VOID ) {
 
 bool dllinject::XCreateRemoteThread( LPTHREAD_START_ROUTINE func, LPVOID param ) {
     #ifdef DLLINJECT_CREATE_REMOTE_THREAD
+        #ifdef DEBUG
+            std::cout << "Injecting via CreateRemoteThread!" << std::endl;
+        #endif
         _thread = CreateRemoteThread( _prochndl, NULL, 0, func, param, 0, NULL );
         if( !_thread )
             return false;
     #endif
     #ifdef DLLINJECT_NT_CREATE_THREAD_EX
+        #ifdef DEBUG
+            std::cout << "Injecting via NtCreateThreadEx!" << std::endl;
+        #endif
         pfnNtCreateThreadEx NtCreateThreadEx = reinterpret_cast<pfnNtCreateThreadEx> (NTCREATE_THREAD_EX());
         NtCreateThreadEx( &_thread, 0x1FFFFF, NULL, _prochndl, func, param, FALSE,
                 NULL, NULL, NULL, NULL );
