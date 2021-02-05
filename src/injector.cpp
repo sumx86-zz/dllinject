@@ -2,8 +2,25 @@
 
 typedef BOOL (__stdcall *LPFN_ISWOW64PROC)(HANDLE, PBOOL);
 
-#define GET_THREAD_ROUTINE()\
+typedef NTSTATUS (__stdcall *pfnNtCreateThreadEx)
+(
+	OUT PHANDLE hThread,
+	IN ACCESS_MASK DesiredAccess,
+	IN PVOID ObjectAttributes,
+	IN HANDLE ProcessHandle,
+	IN PVOID lpStartAddress,
+	IN PVOID lpParameter,
+	IN ULONG Flags,
+	IN SIZE_T StackZeroBits,
+	IN SIZE_T SizeOfStackCommit,
+	IN SIZE_T SizeOfStackReserve,
+	OUT PVOID lpBytesBuffer);
+
+#define LOADLIB_ROUTINE()\
     (LPVOID) GetProcAddress( GetModuleHandle(TEXT("kernel32")), "LoadLibraryW")
+
+#define NTCREATE_THREAD_EX()\
+    (LPVOID) GetProcAddress( GetModuleHandle(TEXT("ntdll")), "NtCreateThreadEx" )
 
 dllinject::dllinject( const char *name ) {
     if( !FindProcessByName( name ) ) {
@@ -131,13 +148,29 @@ bool dllinject::IsProcess64( VOID ) {
     #endif
 }
 
+bool dllinject::XCreateRemoteThread( LPTHREAD_START_ROUTINE func, LPVOID param ) {
+    #ifdef DLLINJECT_CREATE_REMOTE_THREAD
+        _thread = CreateRemoteThread( _prochndl, NULL, 0, func, param, 0, NULL );
+        if( !_thread )
+            return false;
+    #endif
+    #ifdef DLLINJECT_NT_CREATE_THREAD_EX
+        pfnNtCreateThreadEx NtCreateThreadEx = reinterpret_cast<pfnNtCreateThreadEx> (NTCREATE_THREAD_EX());
+        NtCreateThreadEx( &_thread, 0x1FFFFF, NULL, _prochndl, func, param, FALSE,
+                NULL, NULL, NULL, NULL );
+        if( !_thread )
+            return false;
+
+    #endif
+    return true;
+}
+
 bool dllinject::InjectDll( const std::wstring& dllpath ) {
     // get the token of the current process
     if( GetPToken() == NULL )
         return false;
     // enable the SE_DEBUG_NAME privilege
-    if( !SetDebugPriv( _ptoken ) )
-        return false;
+    SetDebugPriv( _ptoken );
 
     size_t size = dllpath.length() * sizeof(wchar_t);
     LPVOID baseaddr = VirtualAllocEx( _prochndl, NULL, size, MEM_COMMIT, PAGE_READWRITE );
@@ -154,14 +187,15 @@ bool dllinject::InjectDll( const std::wstring& dllpath ) {
         #endif
         return false;
     }
-    PTHREAD_START_ROUTINE routine = reinterpret_cast<PTHREAD_START_ROUTINE >(GET_THREAD_ROUTINE());
-    _thread = CreateRemoteThread( _prochndl, NULL, 0, routine, baseaddr, 0, NULL );
-    if( !_thread ) {
+    LPTHREAD_START_ROUTINE routine = reinterpret_cast<LPTHREAD_START_ROUTINE >(LOADLIB_ROUTINE());
+    bool stat = XCreateRemoteThread( routine, baseaddr );
+    if( !stat ) {
         #ifdef DEBUG
             std::cerr << winstrerror(GetLastError()) << std::endl;
         #endif
         return false;
     }
+    WaitForSingleObject( _thread, INFINITE );
     return true;
 }
 
