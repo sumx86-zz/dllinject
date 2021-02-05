@@ -18,6 +18,7 @@ class dllinject {
         HANDLE GetPToken( VOID );
         bool SetDebugPriv( HANDLE token );
         bool IsProcess64( VOID );
+        bool XCreateRemoteThread( LPTHREAD_START_ROUTINE func, LPVOID param );
 
     private:
         bool GetProcList( VOID );
