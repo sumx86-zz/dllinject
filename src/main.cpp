@@ -7,7 +7,7 @@ VOID __die( const char *err ) {
     std::exit(2);
 }
 
-int main( int argc, char **argv )
+int __stdcall main( int argc, char **argv )
 {
     std::string dllpath = "path_to_dll";
     char *addr = (char *) PE_PARSER::LoadFile(dllpath.c_str());
@@ -18,9 +18,14 @@ int main( int argc, char **argv )
     if( !PE_PARSER::IsDllFile() )
         std::cout << "[ERROR] File is not a dll!\n";
 
-    dllinjector injector = dllinjector(new dllinject("notepad.exe"));
     // get the dll architecture
     WORD dllmachine = PE_PARSER::DllMachine();
+#ifdef _WIN32
+    if( dllmachine == DLL_X64 )
+        __die( "[ERROR] - Can't use 64bit dll on a 32bit system!" );
+#endif
+
+    dllinjector injector = dllinjector(new dllinject("notepad.exe"));
     // 64bit processes can't use 32bit dlls
     if( dllmachine == DLL_X86 && injector->IsProcess64() )
         __die( "[ERROR] - Trying to inject 32bit dll into 64bit process!" );
