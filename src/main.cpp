@@ -9,7 +9,7 @@ VOID __die( const char *err ) {
 
 int __stdcall main( int argc, char **argv )
 {
-    std::string dllpath = "C:\\Users\\babati\\Desktop\\dllinject-main\\lib\\test.dll";
+    std::string dllpath = "path_to_dll";
     char *addr = (char *) PE_PARSER::LoadFile(dllpath.c_str());
     if( addr == NULL )
         return -1;
